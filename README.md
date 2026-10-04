@@ -2,6 +2,8 @@
 
 **Atividade ponderada: Alternativa 2, melhoria do requisito não funcional de segurança**
 
+**Navegação:** [Introdução](#1-introdução) · [Diagrama de arquitetura](#22-arquitetura-e-fronteiras-de-confiança) · [Responsabilidades dos módulos](#23-responsabilidades-dos-módulos) · [Conclusão](#3-conclusão) · [Referências](#4-referências-bibliográficas)
+
 ## 1 Introdução
 
 O AZ1 é um assistente conversacional desenvolvido para apoiar a gestão do portfólio de projetos do PMO Corporativo do Metrô de São Paulo. Por meio de texto ou voz, profissionais podem consultar documentos, prazos, marcos, riscos, pendências e andamento dos projetos. O sistema também apoia comparações, sinaliza situações que exigem atenção e sugere preenchimentos, reduzindo o esforço manual de acompanhamento. Analistas de PMO consolidam informações, líderes acompanham seus empreendimentos e diretores obtêm uma visão consolidada para apoiar decisões. A revisão das sugestões e a decisão final continuam sob responsabilidade do profissional.
@@ -23,6 +25,25 @@ Propõe-se uma arquitetura de defesa em profundidade adaptada à stack do AZ1, c
 ## 2 Solução proposta
 
 ### 2.1 Escopo e modelo de ameaças
+
+#### Diagnóstico do estado atual e melhoria pretendida
+
+O diagnóstico parte da descrição do AZ1 fornecida pela equipe. Este repositório contém a proposta acadêmica, sem o código-fonte do sistema. Assim, diferencia-se uma característica informada de um controle cuja implementação ainda precisa ser verificada. Essa distinção evita apresentar uma ameaça hipotética como falha comprovada do projeto.
+
+| Aspecto | Estado atual informado pela equipe | Melhoria proposta e evidência necessária |
+| --- | --- | --- |
+| Dados do MVP | Uso de dados sintéticos, sem acesso ao portfólio real | Catalogar a origem das bases e verificar uploads; evidência: inventário e arquivos de teste |
+| Identidade | Supabase Auth integrado ao Microsoft Entra ID | Verificar configuração e validação de tokens; evidência: testes com token inválido, expirado e conta fora do ambiente autorizado |
+| Acesso aos projetos | Existem perfis de analista, líder e diretor; o detalhamento das permissões não foi fornecido | Formalizar a matriz de acesso e aplicar autorização por recurso; evidência: testes de acesso cruzado por perfil |
+| Recuperação documental | Gemini com RAG e PostgreSQL com pgvector | Verificar se cada fragmento preserva as permissões da fonte; evidência: inspeção do contexto enviado ao modelo em consulta restrita |
+| Anexos e processamento | MinIO e RabbitMQ integram a stack | Verificar quarentena, limites e autorização dos workers; evidência: rejeição de arquivo inválido e tarefa com acesso revogado |
+| Voz | Deepgram é utilizado nos recursos de voz | Verificar retenção e equivalência dos controles entre texto e transcrição; evidência: configuração registrada e testes adversariais por canal |
+| Sugestões e decisões | O profissional revisa sugestões e toma decisões | Tornar essa separação verificável na interface e no backend; evidência: demonstração de que uma sugestão não altera dados oficiais automaticamente |
+| Hospedagem | Docker Compose em EC2 acadêmica | Verificar portas, segredos e recuperação; evidência: revisão da configuração e teste de restauração |
+
+O avanço pretendido é passar de uma descrição funcional para uma política de segurança demonstrável. Por exemplo, ter login identifica quem consulta; a melhoria proposta comprova também quais projetos essa identidade pode acessar, inclusive em documentos, comparações e tarefas assíncronas. A presença de dados sintéticos reduz o impacto de um vazamento do portfólio no MVP, mas não comprova isolamento entre perfis nem proteção de credenciais.
+
+#### Política de acesso e ameaças
 
 A proposta preserva a finalidade consultiva do AZ1. Consultas, comparações e sugestões são produzidas no escopo autorizado, sem atualizar automaticamente informações oficiais do portfólio. Caso uma funcionalidade de gravação seja acrescentada, deverá exigir autorização específica, revisão e confirmação do profissional.
 
@@ -54,7 +75,15 @@ Consideram-se atacantes externos, usuários autenticados tentando ampliar privil
 
 O diagrama reúne a stack informada e **controles a acrescentar ou verificar**. A existência de uma tecnologia não significa que suas proteções estejam configuradas. Decisões de acesso ficam no backend e nos serviços de dados; classificadores e Gemini interpretam solicitações, sem determinar permissões.
 
-**Figura 1: Arquitetura de segurança proposta para o AZ1**
+**Figura 1: Visão geral da arquitetura de segurança proposta para o AZ1**
+
+![Diagrama do AZ1: usuários acessam o FastAPI por HTTPS; identidade define o escopo; consultas e RAG acessam dados autorizados; anexos passam por quarentena e workers; Gemini e Deepgram recebem conteúdo mínimo; a resposta passa por validação e revisão humana.](docs/arquitetura-seguranca-az1.svg)
+
+*Fonte: elaboração própria (2026). A imagem apresenta os principais fluxos e controles propostos. [Abrir o diagrama em arquivo separado](docs/arquitetura-seguranca-az1.svg).*
+
+**Figura 2: Detalhamento dos módulos e fluxos da arquitetura**
+
+O diagrama abaixo utiliza Mermaid e é exibido como desenho na visualização do README no GitHub. A Figura 1 também está disponível como SVG, para visualização sem suporte a Mermaid.
 
 ```mermaid
 flowchart TB
@@ -210,11 +239,17 @@ O trabalho deve aproveitar a stack existente, mantendo as verificações como co
 
 A estimativa pressupõe stack funcional, um desenvolvedor familiarizado com ela e apoio da equipe para revisar políticas e respostas. Não inclui implementação integral do AZ1, contratação, auditoria independente ou homologação corporativa. O esforço real depende do código e das configurações existentes, ainda não inspecionados. Custos recorrentes incluem APIs, EC2, armazenamento, revisão documental e manutenção.
 
+Cada etapa deve terminar com um artefato revisável: matriz de acesso, testes e decisões esperadas, configuração dos serviços ou relatório de resultados. A liberação de uma versão protegida depende dos critérios da seção 2.6. Se houver acesso cruzado, exposição de segredo ou alteração oficial sem revisão, a versão não deve avançar para testes com dados reais. Desvios de latência e bloqueios indevidos exigem ajuste e nova medição, preservando as barreiras de autorização.
+
+O risco residual também deve ser registrado: usuários autorizados ainda podem interpretar incorretamente uma resposta; documentos aprovados podem estar desatualizados; e a instância acadêmica pode falhar. Fontes e versões, revisão profissional e recuperação testada reduzem essas consequências, mas não as eliminam. Uma futura adoção institucional precisa reavaliar esses riscos no ambiente efetivamente contratado e aprovado.
+
 ## 3 Conclusão
 
 Considero que a segurança do AZ1 está diretamente ligada à confiança nas informações apresentadas ao PMO. Uma consulta rápida perde valor se mistura dados de projetos, expõe conteúdo fora das permissões ou transforma uma sugestão em informação oficial. Por isso, a proposta reúne confidencialidade, integridade e disponibilidade, mantendo o profissional responsável pela interpretação e pelas decisões.
 
 Na minha avaliação, os dados sintéticos permitem validar controles antes de uma possível adoção institucional. Eu priorizaria autorização por projeto no FastAPI, preservação de permissões no pgvector e no MinIO e revisão das tarefas do RabbitMQ. Também considero necessário avaliar a voz: uma transcrição pode introduzir os mesmos ataques de uma mensagem e envolve envio de áudio a um provedor externo.
+
+O ponto que considero mais desafiador é manter a mesma política de acesso em toda a trajetória da informação. Proteger a consulta no FastAPI seria insuficiente se um fragmento no pgvector, um download no MinIO ou uma tarefa atrasada no RabbitMQ pudesse devolver conteúdo fora do escopo. Essa dependência entre componentes justifica priorizar testes do fluxo completo e revisar permissões com a equipe, antes de sofisticar os filtros de linguagem.
 
 O esforço de 60 a 84 horas corresponde à evolução do MVP nas condições descritas. A viabilidade depende de aproveitar componentes existentes e produzir evidências, em vez de apenas declarar segurança. Uma implantação com dados reais exigiria participação do PMO e das áreas responsáveis por tecnologia e proteção de dados, além de infraestrutura e contratação adequadas.
 
